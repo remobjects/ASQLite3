@@ -11,6 +11,15 @@ for questions please register on the forum on www.aducom.com/sqlite
 {$IFDEF VER110}{C3}{$B-}{$X+}{$T-}{$H+}{$ENDIF}
 {$IFDEF VER93}{C1}{$B-}{$X+}{$T-}{$H+}{$ENDIF}
 
+{$IFDEF VER250}
+  {$DEFINE VER200} // simply define for DELPHI XE4
+  {$DEFINE ASQLite_XE4PLUS}
+  {$DEFINE ASQLite_XE3PLUS}
+  {$DEFINE ASQLite_XE2PLUS}
+  {$DEFINE ASQLite_XEPLUS}
+  {$DEFINE ASQLite_D2010PLUS}
+{$ENDIF}
+
 {$IFDEF VER240}
   {$DEFINE VER200} // simply define for DELPHI XE3
   {$DEFINE ASQLite_XE3PLUS}
@@ -39,7 +48,7 @@ for questions please register on the forum on www.aducom.com/sqlite
 {$ENDIF}
 
 
-{$IFDEF VER200} //2009
+{$IFDEF VER200}
   {$DEFINE ASQLite_D2PLUS}
   {$DEFINE ASQLite_D3PLUS}
   {$DEFINE ASQLite_D4PLUS}
@@ -50,7 +59,7 @@ for questions please register on the forum on www.aducom.com/sqlite
   {$DEFINE ASQLite_D2006PLUS}
   {$DEFINE ASQLite_D2007PLUS}
   {$DEFINE ASQLite_D2009PLUS}
-  {$DEFINE DELPHI10}
+  {DELPHI10}
   {$B-}{$X+}{$T-}{$H+}
   {$DEFINE ASQLite_DYNARRAY}
 {$ENDIF}

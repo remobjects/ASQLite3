@@ -175,11 +175,17 @@ type
   Dataset_PByte = PByte;
 
 {$IFDEF ASQLite_XE3PLUS}
+  {$IFDEF ASQLite_XE4PLUS}
+  Dataset_TRecBuf = TRecBuf;
+  {$ELSE}
+  Dataset_TRecBuf = TRecordBuffer;
+  {$ENDIF}
   Dataset_TRecordBuffer = TRecordBuffer;
   Dataset_TValueBuffer = TValueBuffer;
   Dataset_TBookmark = TBookmark;
   TList_TField = TList<TField>;
 {$ELSE}
+  Dataset_TRecBuf = Dataset_PByte;
   Dataset_TRecordBuffer = Dataset_PByte;
   Dataset_TValueBuffer = Pointer;
   Dataset_TBookmark = Pointer;
@@ -590,6 +596,7 @@ type
     procedure IntGotoBookmark(Bookmark: PBookmarkData);
     function IntFindRecordID(Buf: TBookmarkData): Integer;
     function RecordBuffer_To_NativeRecord(aBuf: Dataset_TRecordBuffer):Dataset_PByte;inline;
+    function RecBuf_To_NativeRecord(aBuf: Dataset_TRecBuf):Dataset_PByte;inline;
     function Record_To_RecordBuffer(aRec: Pointer): Dataset_TRecordBuffer;inline;
     function Bookmark_To_BookMarkData(aBookmark: Dataset_TBookmark): PBookmarkData;inline;
     function ValueBuffer_To_Pointer(aBuffer: Dataset_TValueBuffer): Pointer;inline;
@@ -693,8 +700,8 @@ type
     procedure RollBack;
     procedure SetFiltered(Value: Boolean); override;
     procedure SQLiteMasterChanged(const AIsNull: Boolean); virtual;
-    function GetFieldData(Field: TField; Buffer: Dataset_TValueBuffer): boolean; override;
-    function GetFieldData(FieldNo: integer; Buffer: Dataset_TValueBuffer): boolean; override; // 20040225
+    function GetFieldData(Field: TField;{$IFDEF ASQLite_XE4PLUS}var{$ENDIF} Buffer: Dataset_TValueBuffer): boolean; override;
+    function GetFieldData(FieldNo: integer;{$IFDEF ASQLite_XE4PLUS}var{$ENDIF} Buffer: Dataset_TValueBuffer): boolean; override; // 20040225
     function GetLastInsertRow: integer;
     function CompareBookmarks(Bookmark1, Bookmark2: TBookmark): Integer; override; //MS
     function CreateBlobStream(Field: TField; Mode: TBlobStreamMode): TStream; override;
@@ -823,7 +830,7 @@ type
 implementation
 
 uses
-  Math, StrUtils;
+  Math, StrUtils, AnsiStrings;
 
 function systemNoCaseCompare(db : TASQLite3DB; s1Len : integer; s1 : PWideChar; s2Len : integer; s2 : PWideChar) : integer; cdecl;
 begin
@@ -1822,8 +1829,8 @@ begin
 
           if FTypeLess then begin
             mv := GetNativeFieldSize(i + 1);
-            if StrLen(pData) < Cardinal(mv) then
-              mv := StrLen(pData);
+            if {$IFDEF ASQLite_XE4PLUS}AnsiStrings.{$ENDIF}StrLen(pData) < Cardinal(mv) then
+              mv := {$IFDEF ASQLite_XE4PLUS}AnsiStrings.{$ENDIF}StrLen(pData);
             Move(pData^, (ResultStr + GetFieldOffset(i + 1))^, mv);
           end
           else begin
@@ -1838,8 +1845,8 @@ begin
 
               ftString: begin // DI
                 mv := GetNativeFieldSize(i + 1);
-                  if StrLen(pData) < Cardinal(mv) then
-                    mv := StrLen(pData)+1;
+                  if {$IFDEF ASQLite_XE4PLUS}AnsiStrings.{$ENDIF}StrLen(pData) < Cardinal(mv) then
+                    mv := {$IFDEF ASQLite_XE4PLUS}AnsiStrings.{$ENDIF}StrLen(pData)+1;
                     Move(pData^, (ResultStr + GetFieldOffset(i + 1))^, mv);
                 end;
 
@@ -2472,7 +2479,7 @@ end;
 
 function TableExistsCallback(UserData: Pointer; ColumnCount: Integer; ColumnValues, ColumnNames: PPointer): Integer; cdecl;
 begin
-  if StrIComp(pAnsiChar(UserData), pAnsiChar(ColumnValues^)) <> 0 then
+  if {$IFDEF ASQLite_XE4PLUS}AnsiStrings.{$ENDIF}StrIComp(pAnsiChar(UserData), pAnsiChar(ColumnValues^)) <> 0 then
     Result := 0
   else
     Result := 1; // Abort
@@ -2731,7 +2738,7 @@ begin
   Result := '';
   if Locate(KeyFields, KeyValues, []) then
   begin
-    if CalcFieldInList(ResultFields) then GetCalcFields(Dataset_TRecordBuffer(FResult.GetData(FCurRec)));
+    if CalcFieldInList(ResultFields) then GetCalcFields(Dataset_TRecBuf(FResult.GetData(FCurRec)));
     OldState := SetTempState(dsFilter);
     try
       Result := FieldValues[ResultFields];
@@ -2784,6 +2791,12 @@ end;
 {
  Register detail dataset for a master-detail relationship
 }
+function TASQLite3BaseQuery.RecBuf_To_NativeRecord(
+  aBuf: Dataset_TRecBuf): Dataset_PByte;
+begin
+  Result := Dataset_PByte(aBuf);
+end;
+
 function TASQLite3BaseQuery.RecordBuffer_To_NativeRecord(
   aBuf: Dataset_TRecordBuffer): Dataset_PByte;
 begin
@@ -3338,12 +3351,12 @@ begin
     dsBrowse: if IsEmpty then
         Buffer := nil
       else
-        Buffer := RecordBuffer_To_NativeRecord(ActiveBuffer);
+        Buffer := RecBuf_To_NativeRecord(ActiveBuffer);
 
-    dsEdit: Buffer := RecordBuffer_To_NativeRecord(ActiveBuffer);
-    dsInsert: Buffer := RecordBuffer_To_NativeRecord(ActiveBuffer);
-    dsFilter: Buffer := RecordBuffer_To_NativeRecord(ActiveBuffer);   //FFilterBuffer;
-    dsCalcFields: Buffer := RecordBuffer_To_NativeRecord(CalcBuffer);
+    dsEdit: Buffer := RecBuf_To_NativeRecord(ActiveBuffer);
+    dsInsert: Buffer := RecBuf_To_NativeRecord(ActiveBuffer);
+    dsFilter: Buffer := RecBuf_To_NativeRecord(ActiveBuffer);   //FFilterBuffer;
+    dsCalcFields: Buffer := RecBuf_To_NativeRecord(CalcBuffer);
   else
     Buffer := nil;
   end;
@@ -3885,7 +3898,7 @@ begin
       if FUniDir then begin
           ptr := Connection.SQLite3_GetNextResult(Connection.DBHandle, FStatement, self);
           if ptr <> nil then begin
-             Move(ptr^, RecordBuffer_To_NativeRecord(ActiveBuffer)^, MaxStrLen);
+             Move(ptr^, RecBuf_To_NativeRecord(ActiveBuffer)^, MaxStrLen);
           end else Result := grEOF;
       end else begin
           ptr := FResult.GetData(FCurRec);
@@ -3902,7 +3915,7 @@ begin
       end;
 
       if CalcFieldsSize > 0 then
-        GetCalcFields(Buffer)
+        GetCalcFields(Dataset_TRecBuf(Buffer));
 
     end
     else if (Result = grError) and DoCheck then
@@ -3965,7 +3978,7 @@ end;
   calculated fields, filters, and other more advanced features.
   See TBDEDataSet for a more complete example. }
 
-function TASQLite3BaseQuery.GetFieldData(Field: TField; Buffer: Dataset_TValueBuffer): boolean;
+function TASQLite3BaseQuery.GetFieldData(Field: TField;{$IFDEF ASQLite_XE4PLUS}var{$ENDIF} Buffer: Dataset_TValueBuffer): boolean;
 var
   MyBuf : ansistring;
   MyWideBuf : widestring;
@@ -4040,7 +4053,7 @@ end;
 // The next two functions are added to increase compatibility with
 // components that require it (like DevExpress)
 
-function TASQLite3BaseQuery.GetFieldData(FieldNo: integer; Buffer: Dataset_TValueBuffer): boolean;
+function TASQLite3BaseQuery.GetFieldData(FieldNo: integer;{$IFDEF ASQLite_XE4PLUS}var{$ENDIF} Buffer: Dataset_TValueBuffer): boolean;
 begin
   Result := GetFieldData(FieldByNumber(FieldNo), Buffer);
 end;
@@ -4086,7 +4099,7 @@ begin
     if (State in [dsBrowse, dsEdit, dsInsert, dsCalcFields, dsBlockRead]) then begin
       if (Field.FieldNo < 0) then begin
         if (Assigned(SourceBuffer)) and (Assigned(DestBuffer)) then
-          Move(SourceBuffer^, (CalcBuffer + GetCalcFieldOffset(Field))^, 2*GetFieldSize(Field))
+          Move(SourceBuffer^, (RecBuf_To_NativeRecord(CalcBuffer) + GetCalcFieldOffset(Field))^, 2*GetFieldSize(Field))
         else
           setNullSrc(DestBuffer, Field.FieldNo, true);
       end;
@@ -4146,14 +4159,14 @@ begin
     else begin
        ptr := FResult.GetData(FCurrec);
        if ptr <> nil then
-          move(RecordBuffer_To_NativeRecord(ActiveBuffer)^, ptr^, FRecBufSize); // albert 17/11/2004
+          move(RecBuf_To_NativeRecord(ActiveBuffer)^, ptr^, FRecBufSize); // albert 17/11/2004
     end;
   end
   else
   begin
     { If inserting (or appending), increment the bookmark counter and
       store the data }
-    FResult.Insert(FCurRec, RecordBuffer_To_NativeRecord(ActiveBuffer),
+    FResult.Insert(FCurRec, RecBuf_To_NativeRecord(ActiveBuffer),
       Connection.SQLite3_LastInsertRow(Connection.DBHandle));
   end;
   DebugLeave('TASQLite3BaseQuery.InternalPost');
