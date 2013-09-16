@@ -11,8 +11,18 @@ for questions please register on the forum on www.aducom.com/sqlite
 {$IFDEF VER110}{C3}{$B-}{$X+}{$T-}{$H+}{$ENDIF}
 {$IFDEF VER93}{C1}{$B-}{$X+}{$T-}{$H+}{$ENDIF}
 
+{$IFDEF VER260}
+  {$DEFINE VER200} // define for DELPHI XE5
+  {$DEFINE ASQLite_XE5PLUS}  
+  {$DEFINE ASQLite_XE4PLUS}
+  {$DEFINE ASQLite_XE3PLUS}
+  {$DEFINE ASQLite_XE2PLUS}
+  {$DEFINE ASQLite_XEPLUS}
+  {$DEFINE ASQLite_D2010PLUS}
+{$ENDIF}
+
 {$IFDEF VER250}
-  {$DEFINE VER200} // simply define for DELPHI XE4
+  {$DEFINE VER200} // define for DELPHI XE4
   {$DEFINE ASQLite_XE4PLUS}
   {$DEFINE ASQLite_XE3PLUS}
   {$DEFINE ASQLite_XE2PLUS}
@@ -21,7 +31,7 @@ for questions please register on the forum on www.aducom.com/sqlite
 {$ENDIF}
 
 {$IFDEF VER240}
-  {$DEFINE VER200} // simply define for DELPHI XE3
+  {$DEFINE VER200} // define for DELPHI XE3
   {$DEFINE ASQLite_XE3PLUS}
   {$DEFINE ASQLite_XE2PLUS}
   {$DEFINE ASQLite_XEPLUS}
@@ -29,7 +39,7 @@ for questions please register on the forum on www.aducom.com/sqlite
 {$ENDIF}
 
 {$IFDEF VER230}
-  {$DEFINE VER200} // simply define for DELPHI XE2
+  {$DEFINE VER200} // define for DELPHI XE2
   {$DEFINE ASQLite_XE2PLUS}
   {$DEFINE ASQLite_XE2PLUS}
   {$DEFINE ASQLite_XEPLUS}
@@ -37,13 +47,13 @@ for questions please register on the forum on www.aducom.com/sqlite
 {$ENDIF}
 
 {$IFDEF VER220}
-  {$DEFINE VER200} // simply define for DELPHI XE
+  {$DEFINE VER200} // define for DELPHI XE
   {$DEFINE ASQLite_XEPLUS}
   {$DEFINE ASQLite_D2010PLUS}
 {$ENDIF}
 
 {$IFDEF VER210}
-  {$DEFINE VER200} // simply define for D2010
+  {$DEFINE VER200} // define for D2010
   {$DEFINE ASQLite_D2010PLUS}
 {$ENDIF}
 
