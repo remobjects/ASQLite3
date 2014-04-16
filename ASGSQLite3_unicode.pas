@@ -93,7 +93,7 @@ interface
 uses
   DB,
   DBCommon,
-  Dialogs,
+//  Dialogs,
   Classes,
   Windows,
   SysUtils,
@@ -1673,7 +1673,7 @@ begin
              I := Fields.IndexOf(MyField);
 
              if MyField=nil then begin
-                showmessage(TheField+' not found');
+                raise Exception.Create(TheField+' not found');
                 exit;
              end;
 
