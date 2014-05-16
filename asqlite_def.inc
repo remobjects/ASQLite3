@@ -185,3 +185,5 @@ for questions please register on the forum on www.aducom.com/sqlite
 {$DEFINE ASQLite_NOIDISPATCH} // not implemented
 {$ENDIF}
 
+{$HINTS OFF}
+{$WARNINGS OFF}
