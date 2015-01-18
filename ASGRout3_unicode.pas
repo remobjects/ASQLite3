@@ -163,7 +163,7 @@ begin
       if result = -1.5 then begin
         {$IFDEF ASQLite_XEPLUS}FormatSettings.{$ENDIF}ShortDateFormat := 'yyyy-mm-dd';
         try
-          result := StrToDate(TheDate)
+          result := Trunc(StrToDateTime(TheDate));
         except
           result := StrToDateX('01-01-1900');
           raise;
