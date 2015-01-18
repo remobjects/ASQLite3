@@ -982,7 +982,7 @@ begin
         FieldType := ftWideString;
         FieldLen := StrToInt(Copy(FieldInfo, p1 + 1, p2 - p1 - 1));
         FieldLen := FieldLen * 2;
-      end else if (vt = 'numeric') then begin
+      end else if (vt = 'numeric') or (vt = 'float') or (vt = 'real') then begin
         vt := Copy(FieldInfo, p1 + 1, p2 - p1 - 1);
         pn := pos('.', vt); if pn = 0 then pn := pos(',', vt);
         FieldType := ftFloat;
