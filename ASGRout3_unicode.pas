@@ -87,7 +87,7 @@ function StrToFloatX(StrIn : string) : extended;
 function StrToDateX(TheDate: string): TDateTime;
 function StrToDateTimeX(const S: string): TDateTime;
 function StrToTimeX(TheTime : string): TDateTime;
-function YYYYMMDDParser(Str: PAnsiChar): TDateTime;
+function YYYYMMDDParser(Str: PChar): TDateTime;
 function FloatParser(Str: string): string;// jordi march
 function WStrCopy(Dest: PWideChar; const Source: PWideChar): PWideChar;
 
@@ -193,7 +193,7 @@ end;
 // Routine submitted by jpierce, modified to accept more types
 // It requires that the date be in strict yyyy-mm-dd [hh:nn:[ss[:mmm]]]
 
-function YYYYMMDDParser(Str: PAnsiChar): TDateTime;
+function YYYYMMDDParser(Str: PChar): TDateTime;
 var
   Year, Month, Day, Hour, Min, Sec, MSec: Word;
 begin
@@ -202,21 +202,21 @@ begin
   try
     if Length(Str) >= 10 then // 10 = Length of YYYY-MM-DD
     begin
-      Year := StrToInt(Copy(ansistring(Str), 1, 4));
-      Month := StrToInt(Copy(ansistring(Str), 6, 2));
-      Day := StrToInt(Copy(ansistring(Str), 9, 2));
+      Year := StrToInt(Copy(Str, 1, 4));
+      Month := StrToInt(Copy(Str, 6, 2));
+      Day := StrToInt(Copy(Str, 9, 2));
 
       Result := EncodeDate(Year, Month, Day);
     end;
 
     if Length(Str) > 10 then // it has a time
     begin
-      Hour := StrToInt(Copy(ansistring(Str), 12, 2));
-      Min := StrToInt(Copy(ansistring(Str), 15, 2));
+      Hour := StrToInt(Copy(Str, 12, 2));
+      Min := StrToInt(Copy(Str, 15, 2));
       Sec := 0;
       MSec := 0;
-      if Length(Str) > 16 then Sec := StrToInt(Copy(ansistring(Str), 18, 2));
-      if Length(Str) > 19 then Msec := StrToInt(Copy(ansistring(Str), 21, 3));
+      if Length(Str) > 16 then Sec := StrToInt(Copy(Str, 18, 2));
+      if Length(Str) > 19 then Msec := StrToInt(Copy(Str, 21, 3));
       Result := Result + EncodeTime(Hour, Min, Sec, MSec);
     end;
   except

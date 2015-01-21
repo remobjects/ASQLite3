@@ -168,6 +168,12 @@ const
   Crlf              : string = #13#10;
   Q                 = '''';
 
+  SQLITE_INTEGER    = 1;
+  SQLITE_FLOAT      = 2;
+  SQLITE_TEXT       = 3;
+  SQLITE_BLOB       = 4;
+  SQLITE_NULL       = 5;
+
 type
 {$IFNDEF ASQLite_XE2PLUS}
   NativeInt = LongInt;
@@ -591,7 +597,7 @@ type
     DetailList: TList;
     procedure SetSQL(const Value: TStrings);
 //    function UnpackBuffer(Buffer: PAnsiChar; FieldType: TFieldType): TConvertBuffer;
-    procedure UnpackBuffer(Buffer: PAnsiChar; FieldType: TFieldType; var RetBuffer : TConvertBuffer);
+    procedure UnpackBuffer(Buffer: PChar; FieldType: TFieldType; var RetBuffer : TConvertBuffer);
     procedure SetDataSource(Value: TDataSource);
     procedure IntGotoBookmark(Bookmark: PBookmarkData);
     function IntFindRecordID(Buf: TBookmarkData): Integer;
@@ -842,70 +848,6 @@ begin
   result := CompareStr(s1, s2);
 end;
 
-// GPA - Static Link Start
-{$IFDEF SQLite_Static}
-//SZ
-// Delete this
-{
-Var
- __HandlerPtr:Pointer;
-}
-
-// Starting from 3.5.1, instead of C modules Memory Manager,can be used independent one
-// (Borland's, FastMM4, etc, which is used in customers main project) with staticaly     // linked C modules
-// SZ - Please enable static version of SQLite you prefer
-
-//SZ {$I \SZUtils\SQLite_OBJs_3_5_1.inc}
-{$I \SZUtils\SQLite_OBJs_3_5_9.inc}
-
-  function  _sqlite3_open(dbname: PAnsiChar; var db: pointer): integer; cdecl; external;
-  function  _sqlite3_close(db: pointer): integer; cdecl; external;
-  function  _sqlite3_exec(DB: Pointer; SQLStatement: PAnsiChar; Callback: TSQLite3_Callback;
-                          UserDate: Pointer; var ErrMsg: PAnsiChar): Integer; cdecl; external;
-  function  _sqlite3_libversion: PAnsiChar; cdecl; external;
-  function  _sqlite3_errmsg(db: pointer): PAnsiChar; cdecl; external;
-  function  _sqlite3_get_table(db: Pointer; SQLStatement: PAnsiChar; var ResultPtr: Pointer;
-                              var RowCount: cardinal; var ColCount: cardinal; var ErrMsg: PAnsiChar): integer; cdecl; external;
-  procedure _sqlite3_free_table(Table: PAnsiChar); cdecl; external;
-  procedure _sqlite3_free(P: PAnsiChar); cdecl; external;
-  function  _sqlite3_complete(P: PAnsiChar): boolean; cdecl; external;
-  function  _sqlite3_last_insert_rowid(db: Pointer): integer; cdecl; external;
-  procedure _sqlite3_interrupt(db: Pointer); cdecl; external;
-  procedure _sqlite3_busy_handler(db: Pointer; CallbackPtr: Pointer; Sender: TObject); cdecl; external;
-  procedure _sqlite3_busy_timeout(db: Pointer; TimeOut: integer); cdecl; external;
-  function  _sqlite3_changes(db: Pointer): integer; cdecl; external;
-  function  _sqlite3_prepare(db: Pointer; SQLStatement: PAnsiChar; nBytes: integer;
-                             var hstatement: pointer; var Tail: PAnsiChar): integer; cdecl; external;
-  function  _sqlite3_finalize(hstatement: pointer): integer; cdecl; external;
-  function  _sqlite3_reset(hstatement: pointer): integer; cdecl; external;
-  function  _sqlite3_step(hstatement: pointer): integer; cdecl; external;
-  function  _sqlite3_column_blob(hstatement: pointer; iCol: integer): pointer; cdecl; external;
-  function  _sqlite3_column_bytes(hstatement: pointer; iCol: integer): integer; cdecl; external;
-  function  _sqlite3_column_bytes16(hstatement: pointer; iCol: integer): integer; cdecl; external;
-  function  _sqlite3_column_count(hstatement: pointer): integer; cdecl; external;
-  function  _sqlite3_column_decltype(hstatement: pointer; iCol: integer): PAnsiChar; cdecl; external;
-  function  _sqlite3_column_double(hstatement: pointer; iCol: integer): double; cdecl; external;
-  function  _sqlite3_column_int(hstatement: pointer; iCol: integer): integer; cdecl; external;
-  function  _sqlite3_column_int64(hstatement: pointer; iCol: integer): int64; cdecl; external;
-  function  _sqlite3_column_name(hstatement: pointer; iCol: integer): PAnsiChar; cdecl; external;
-  function  _sqlite3_column_text(hstatement: pointer; iCol: integer): PAnsiChar; cdecl; external;
-  function  _sqlite3_column_type(hstatement: pointer; iCol: integer): integer; cdecl; external;
-  function  _sqlite3_Bind_Null(hstatement: pointer; iCol: integer): integer; cdecl; external;
-  function  _sqlite3_Bind_Blob(hstatement: pointer; iCol: integer; buf: PAnsiChar; n: integer; DestroyPtr: Pointer): integer; cdecl; external;
-  function  _sqlite3_Bind_Int(hstatement: pointer; iCol: integer; n: integer): integer; cdecl; external;
-  function  _sqlite3_Bind_Double(hstatement: pointer; iCol: integer; d: double): integer; cdecl; external;
-  function  _sqlite3_Bind_Text(hstatement: pointer; iCol: integer; buf: pointer; n: integer; DestroyPtr: Pointer): integer; cdecl; external;
-  function  _sqlite3_Bind_Value(hstatement: pointer; iCol: integer; buf: pointer): integer; cdecl; external;
-  function  _sqlite3_Bind_Text16(hstatement: pointer; iCol: integer; buf: pointer; n: integer; DestroyPtr: Pointer): integer; cdecl; external;
-  function  _sqlite3_Bind_Parameter_Count(hstatement: pointer): integer; cdecl; external;
-  function  _sqlite3_Bind_Parameter_Name(hstatement : pointer; iCol : integer) : PAnsiChar; cdecl; external;
-//  function  _sqlite3_create_collation(db: Pointer; zName : PAnsiChar; pref16 : integer; data : pointer; cmp : TCompareFunc): integer; cdecl; external;
-  function _sqlite3_column_text16(hstatement: pointer; iCol: integer): PWideAnsiChar; cdecl; external;
-
-{$ENDIF}
-// GPA - Static Link End
-
-
 {$IFDEF DEBUG_ENABLED}
 var
   DebugSpaces       : Integer = 0;
@@ -975,14 +917,19 @@ begin
     if p2 <> 0 then
     begin
       vt := LowerCase(Copy(FieldInfo, 1, p1 - 1));
-      if (vt = 'varchar') or (vt = 'char') or (vt = 'varchar2') then begin
+      if (vt = 'varchar') or (vt = 'varying character') or (vt = 'character') or  (vt = 'char') or (vt = 'varchar2') then begin
         FieldType := ftString;
         FieldLen := StrToInt(Copy(FieldInfo, p1 + 1, p2 - p1 - 1));
-      end else if (vt = 'nvarchar') or (vt = 'nchar') or (vt = 'nvarchar2') then begin
+      end else if (vt = 'nvarchar') or (vt = 'native character') or (vt = 'nchar') or (vt = 'nvarchar2') then begin
         FieldType := ftWideString;
         FieldLen := StrToInt(Copy(FieldInfo, p1 + 1, p2 - p1 - 1));
         FieldLen := FieldLen * 2;
-      end else if (vt = 'numeric') or (vt = 'float') or (vt = 'real') then begin
+      end else if (vt = 'numeric') or
+                  (vt = 'float') or
+                  (vt = 'real') or
+                  (vt = 'double') or
+                  (vt = 'double precision') or
+                  (vt = 'decimal') then begin
         vt := Copy(FieldInfo, p1 + 1, p2 - p1 - 1);
         pn := pos('.', vt); if pn = 0 then pn := pos(',', vt);
         FieldType := ftFloat;
@@ -1021,17 +968,23 @@ begin
       FieldType := ftTimeStamp;
       FieldLen := 12;
     end
-    else if (vt = 'integer') or (vt = 'int')  then
+    else if (vt = 'integer') or
+            (vt = 'int') or
+            (vt = 'tinyint') or
+            (vt = 'smallint') or
+            (vt = 'mediumint') or
+            (vt = 'int8') or
+            (vt = 'int2')  then
     begin
       FieldType := ftInteger;
       FieldLen := 12;
     end
-    else if (vt = 'float') or (vt = 'real') then
+    else if (vt = 'float') or (vt = 'real') or (vt = 'double') or (vt = 'double precision')  then
     begin
       FieldType := ftFloat;
       FieldLen := 12;
     end
-    else if (vt = 'boolean') or (vt = 'logical') then
+    else if (vt = 'bool') or (vt = 'boolean') or (vt = 'logical') then
     begin
       FieldType := ftBoolean;
       FieldLen := 2;
@@ -1810,6 +1763,10 @@ var
   pData: PAnsiChar;
   pWideData : PWideChar;
   BlobStream: TMemoryStream;
+  blobData: PByte;
+  tmpString: string;
+  doubleData: Double;
+  nativeColType: integer;
 begin
   result := nil;
   with (Sender as TASQLite3BaseQuery) do begin
@@ -1821,55 +1778,88 @@ begin
           RowId := SQLite3_Column_int(theStatement, i);
         end
         else begin
-          //Jure - Add null marker. This will fill it with #0 when null, #1 when not null
-          setNullSrc(ResultStr, i + 1, SQLite3_column_type(theStatement, i) = 5);
+          nativeColType := SQLite3_column_type(theStatement, i);
+          if (nativeColType = SQLITE_FLOAT) then
+            doubleData := SQLite3_Column_double(theStatement, i);
 
-          pData := pAnsiChar(SQLite3_Column_text(theStatement, i));
-          if pData = nil then pData := '';
+          //Jure - Add null marker. This will fill it with #0 when null, #1 when not null
+          setNullSrc(ResultStr, i + 1, nativeColType = SQLITE_NULL);
 
           if FTypeLess then begin
-            mv := GetNativeFieldSize(i + 1);
-            if {$IFDEF ASQLite_XE4PLUS}AnsiStrings.{$ENDIF}StrLen(pData) < Cardinal(mv) then
-              mv := {$IFDEF ASQLite_XE4PLUS}AnsiStrings.{$ENDIF}StrLen(pData);
-            Move(pData^, (ResultStr + GetFieldOffset(i + 1))^, mv);
+            if (nativeColType = SQLITE_FLOAT) then
+              begin
+                tmpString := FloatToStr(doubleData);
+                pWideData := PWideChar(tmpString);
+              end
+            else
+              pWideData := SQLite3_Column_text16(theStatement, i);
+
+            if pWideData = nil then
+              begin
+                Move(PWideChar('')^, (ResultStr + GetFieldOffset(i + 1))^, 2);
+              end
+            else
+              begin
+                mv := Length(pWideData);
+                mv := Min(mv, FieldDefs.Items[i].Size);
+                Move(PWideChar(Copy(pWideData, 1, mv))^, (ResultStr + GetFieldOffset(i + 1))^, mv * 2 + 2);
+              end;
           end
           else begin
             case FieldDefs[i].DataType of
               ftWideString : begin
+                if (nativeColType = SQLITE_FLOAT) then
+                  begin
+                    tmpString := FloatToStr(doubleData);
+                    pWideData := PWideChar(tmpString);
+                  end
+                else
                   pWideData := SQLite3_Column_text16(theStatement, i);
-                  if pWideData=nil then pWideData := '';
 
-                  mv := FieldDefs[i].Size +1;
-                  Move(pWideData^, (ResultStr + GetFieldOffset(i + 1))^, mv);
+                if pWideData = nil then
+                  begin
+                    Move(PWideChar('')^, (ResultStr + GetFieldOffset(i + 1))^, 2);
+                  end
+                else
+                  begin
+                    mv := Length(pWideData);
+                    mv := Min(mv, FieldDefs.Items[i].Size);
+                    Move(PWideChar(Copy(pWideData, 1, mv))^, (ResultStr + GetFieldOffset(i + 1))^, mv * 2 + 2);
+                  end;
               end;
 
               ftString: begin // DI
-                mv := GetNativeFieldSize(i + 1);
-                  if {$IFDEF ASQLite_XE4PLUS}AnsiStrings.{$ENDIF}StrLen(pData) < Cardinal(mv) then
-                    mv := {$IFDEF ASQLite_XE4PLUS}AnsiStrings.{$ENDIF}StrLen(pData)+1;
-                    Move(pData^, (ResultStr + GetFieldOffset(i + 1))^, mv);
-                end;
+                if (nativeColType = SQLITE_FLOAT) then
+                  begin
+                    tmpString := FloatToStr(doubleData);
+                    pWideData := PWideChar(tmpString);
+                  end
+                else
+                  pWideData := SQLite3_Column_text16(theStatement, i);
 
-              ftFmtMemo : begin // unicode!!! 'dirty' trick for tntWare
-                pWideData := SQLite3_Column_Text16(theStatement, i);
-                MessageBoxW(HWND(nil),pWideData, '', MB_OK);
-                BlobStream := TMemoryStream.Create;
-//                pData := pAnsiChar(pData);
-                MessageBoxW(HWND(nil),pWideChar(pData), '', MB_OK);
-                  BlobStream.Write(pWideData^, 100);//SQLite3_Column_bytes16(theStatement, i))
-                Move(BlobStream, (ResultStr + GetFieldOffset(i + 1))^, SizeOf(BlobStream)+1); //2007
-              end;
+                if pWideData = nil then
+                  begin
+                    Move(PAnsiChar('')^, (ResultStr + GetFieldOffset(i + 1))^, 1);
+                  end
+                else
+                  begin
+                    mv := Length(pWideData);
+                    mv := Min(mv, FieldDefs.Items[i].Size);
+                    Move(PAnsiChar(AnsiString(Copy(pWideData, 1, mv)))^, (ResultStr + GetFieldOffset(i + 1))^, mv + 1);
+                  end;
+                end;
 
               ftMemo, ftGraphic, ftBlob, ftVariant: begin// DI
                 // create memory stream to save blob;
-                pData := SQLite3_Column_blob(theStatement, i);
+                blobData := SQLite3_Column_blob(theStatement, i);
                 BlobStream := TMemoryStream.Create;
-                BlobStream.Write(pData^, SQLite3_Column_bytes(theStatement, i));
+                BlobStream.Write(blobData^, SQLite3_Column_bytes(theStatement, i));
                 Move(BlobStream, (ResultStr + GetFieldOffset(i + 1))^, SizeOf(BlobStream)+1); //2007
-              end; // DI
-              else // DI
-              begin // DI
-                UnpackBuffer(pData, FieldDefs[i].DataType, ConvertBuf);
+              end;
+              else begin // DI
+                pWideData := SQLite3_Column_Text16(theStatement, i);
+                if pWideData = nil then pWideData := '';
+                UnpackBuffer(pWideData, FieldDefs[i].DataType, ConvertBuf);
                 Move(convertbuf, (ResultStr + GetFieldOffset(i + 1))^, GetFieldSize(i + 1)+1);
               end;
             end;
@@ -2987,8 +2977,7 @@ end;
    defined then the fields have to be converted to the appropiate datatype
 }
 
-procedure TASQLite3BaseQuery.UnpackBuffer(Buffer: PAnsiChar; FieldType: TFieldType; var RetBuffer : TConvertBuffer);
-//function TASQLite3BaseQuery.UnpackBuffer(Buffer: PAnsiChar; FieldType: TFieldType): TConvertBuffer;
+procedure TASQLite3BaseQuery.UnpackBuffer(Buffer: PChar; FieldType: TFieldType; var RetBuffer : TConvertBuffer);
 var
   TempInt           : integer;
   TempDouble        : double;
@@ -3009,7 +2998,7 @@ begin
       end;
     ftInteger, ftSmallInt:
       begin
-        TempInt := StrToIntX(string(Buffer));
+        TempInt := StrToIntX(String(Buffer));
 //        Move(TempInt, result, sizeof(TempInt));
         Move(TempInt, RetBuffer, sizeof(TempInt));
       end;
@@ -3017,10 +3006,10 @@ begin
       begin
         if FSQLiteDateFormat then begin
            {$IFDEF ASQLite_XEPLUS}FormatSettings.{$ENDIF}shorttimeformat := 'hh":"nn":"ss"."zzz';
-           TempT := DateTimeToNative(FieldType, StrToTimeX(string(Buffer)))
+           TempT := DateTimeToNative(FieldType, StrToTimeX(String(Buffer)))
         end else begin
            {$IFDEF ASQLite_XEPLUS}FormatSettings.{$ENDIF}shorttimeformat := 'hh":"nn":"ss"';
-           TempT := DateTimeToNative(FieldType, StrToTimeX(string(Buffer)));
+           TempT := DateTimeToNative(FieldType, StrToTimeX(String(Buffer)));
         end;
 //        Move(TempT, result, sizeof(TDateTime));
         Move(TempT, RetBuffer, sizeof(TDateTime));
@@ -3030,23 +3019,23 @@ begin
         if FSQLiteDateFormat then begin
            savedateformat := {$IFDEF ASQLite_XEPLUS}FormatSettings.{$ENDIF}shortdateformat;
            {$IFDEF ASQLite_XEPLUS}FormatSettings.{$ENDIF}shortdateformat := 'yyyy-mm-dd';
-           if (Buffer = nil) or (Trim(string(buffer))='') then
+           if (Buffer = nil) or (Trim(String(Buffer))='') then
               TempT := DateTimeToNative(FieldType, StrToDateX('1900-01-01'))
            else
-              TempT := DateTimeToNative(FieldType, StrToDateX(string(Buffer)));
+              TempT := DateTimeToNative(FieldType, StrToDateX(String(Buffer)));
            {$IFDEF ASQLite_XEPLUS}FormatSettings.{$ENDIF}shortdateformat := savedateformat;
         end
         else if fTableDateFormat <> '' then begin
            savedateformat := {$IFDEF ASQLite_XEPLUS}FormatSettings.{$ENDIF}shortdateformat;
            {$IFDEF ASQLite_XEPLUS}FormatSettings.{$ENDIF}shortdateformat := fTableDateFormat;
-           if (Buffer = nil) or (Trim(string(buffer))='') then
+           if (Buffer = nil) or (Trim(String(Buffer))='') then
               TempT := DateTimeToNative(FieldType, StrToDateX(string('1900-01-01')))
            else
-              TempT := DateTimeToNative(FieldType, StrToDateX(string(Buffer)));
+              TempT := DateTimeToNative(FieldType, StrToDateX(String(Buffer)));
            {$IFDEF ASQLite_XEPLUS}FormatSettings.{$ENDIF}shortdateformat := savedateformat;
         end
         else
-           TempT := DateTimeToNative(FieldType, StrToDateX(string(Buffer)));
+           TempT := DateTimeToNative(FieldType, StrToDateX(String(Buffer)));
 //        Move(TempT, result, sizeof(TDateTime));
         Move(TempT, RetBuffer, sizeof(TDateTime));
       end;
@@ -3055,7 +3044,7 @@ begin
         if FSQLiteDateFormat then       // aducom
           TempT := DateTimeToNative(FieldType, YYYYMMDDParser(Buffer)) // jpierce
         else
-          TempT := DateTimeToNative(FieldType, StrToDateTimeX(string(Buffer)));
+          TempT := DateTimeToNative(FieldType, StrToDateTimeX(String(Buffer)));
 //        Move(TempT, result, sizeof(TDateTime));
         Move(TempT, RetBuffer, sizeof(TDateTime));
       end;
@@ -3065,11 +3054,11 @@ begin
         if FSQLiteDateFormat then       // aducom
            TSQLTimeStamp((@RetBuffer)^) := DateTimeToSQLTimeStamp(YYYYMMDDParser(Buffer)) // jpierce
         else
-           TSQLTimeStamp((@RetBuffer)^) := DateTimeToSQLTimeStamp(StrToDateTimeX(string(Buffer)));
+           TSQLTimeStamp((@RetBuffer)^) := DateTimeToSQLTimeStamp(StrToDateTimeX(String(Buffer)));
       end;
     ftFloat, ftBCD, ftCurrency:
       begin
-        TempDouble := StrToFloatX(FloatParser(string(Buffer)));
+        TempDouble := StrToFloatX(FloatParser(String(Buffer)));
 //        Move(TempDouble, result, sizeof(TempDouble));
         Move(TempDouble, RetBuffer, sizeof(TempDouble));
       end;
@@ -3078,13 +3067,13 @@ begin
         if not assigned(buffer) or (buffer^ = #0) then //Will not except on null fields, but will not detect a bad value when not null
           tempBool := false
         else
-          TempBool := StrToBool(string(Buffer));
+          TempBool := StrToBool(String(Buffer));
 //        Move(TempBool, result, sizeof(TempBool));
         Move(TempBool, RetBuffer, sizeof(TempBool));
       end;
     ftMemo, ftGraphic, ftBlob, ftFMTMemo, ftVariant: // pointer to stream
       begin
-        TempInt := StrToInt(string(Buffer));
+        TempInt := StrToInt(String(Buffer));
 //        Move(TempInt, result, sizeof(TempInt));
         Move(TempInt, RetBuffer, sizeof(TempInt));
       end;
