@@ -175,6 +175,7 @@ const
   SQLITE_NULL       = 5;
 
 type
+  TASQLiteCharset = (ascUnknown, ascUTF8, ascUTF16, ascUTF16le, ascUTF16be);
 {$IFNDEF ASQLite_XE2PLUS}
   NativeInt = LongInt;
 {$ENDIF}
@@ -308,6 +309,7 @@ type
     FOnBusy: TASQLite3NotifyEvent;
     function FGetDefaultExt: string;
     function FGetDriverDLL: string;
+    procedure GetCharset;
   protected
     { Protected declarations }
     FInlineSQL: TASQLite3InlineSQL;
@@ -330,6 +332,7 @@ type
     FASQLitePragma: TASQLite3Pragma;
     FASQLiteLog: TASQLite3Log;
     FLastError: string;
+    fEncoding:TASQLiteCharset;
     SQLite3_Open16: function(dbname: PChar; var db: pointer): integer; cdecl;
     SQLite3_Close: function(db: pointer): integer; cdecl;
     SQLite3_Exec: function(DB: Pointer; SQLStatement: PAnsiChar; Callback: TSQLite3_Callback;
@@ -439,6 +442,7 @@ type
     property AfterDisconnect: TASQLite3NotifyEvent read FAfterDisconnect write FAfterDisconnect;
     property BeforeDisconnect: TASQLite3NotifyEvent read FBeforeDisconnect write FBeforeDisconnect;
     property OnBusy : TASQLite3NotifyEvent read FOnBusy write FOnBusy;
+    property Encoding: TASQLiteCharset read fEncoding;
   end;
 
   AsgError = class(Exception);
@@ -900,7 +904,7 @@ end;
 //==============================================================================
 
 procedure GetFieldInfo(FieldInfo: string; var FieldType: TFieldType;
-  var FieldLen, FieldDec: integer);
+  var FieldLen, FieldDec: integer; Encoding:TASQLiteCharset);
 var
   p1, p2, pn        : integer;
   vt                : string;
@@ -918,13 +922,15 @@ begin
     begin
       vt := LowerCase(Copy(FieldInfo, 1, p1 - 1));
       if (vt = 'varchar') or (vt = 'varying character') or (vt = 'character') or  (vt = 'char') or (vt = 'varchar2') then begin
-        FieldType := ftString;
-        FieldLen := StrToInt(Copy(FieldInfo, p1 + 1, p2 - p1 - 1));
-      end else if (vt = 'nvarchar') or (vt = 'native character') or (vt = 'nchar') or (vt = 'nvarchar2') then begin
+        FieldType := ftWideString;
+        FieldLen := StrToInt(Copy(FieldInfo, p1 + 1, p2 - p1 - 1)) *2;
+      end
+      else if (vt = 'nvarchar') or (vt = 'native character') or (vt = 'nchar') or (vt = 'nvarchar2') then begin
         FieldType := ftWideString;
         FieldLen := StrToInt(Copy(FieldInfo, p1 + 1, p2 - p1 - 1));
         FieldLen := FieldLen * 2;
-      end else if (vt = 'numeric') or
+      end
+      else if (vt = 'numeric') or
                   (vt = 'float') or
                   (vt = 'real') or
                   (vt = 'double') or
@@ -989,18 +995,15 @@ begin
       FieldType := ftBoolean;
       FieldLen := 2;
     end
-    else if (vt = 'char') or (vt = 'byte') then
-    begin
+    else if (vt = 'char') or (vt = 'byte') then begin
       FieldType := ftString;
       FieldLen := sizeof(AnsiChar);
     end
-    else if (vt = 'shorttext') or (vt = 'string') then
-    begin
+    else if (vt = 'shorttext') or (vt = 'string') then begin
       FieldType := ftString;
       FieldLen := 255;
     end
-    else if (vt = 'widetext') or (vt = 'widestring') then
-    begin
+    else if  (vt = 'widestring') then begin
       FieldType := ftWideString;
       FieldLen := 512;
     end
@@ -1009,24 +1012,22 @@ begin
       FieldType := ftCurrency;
       FieldLen := 10;
     end
-    else if (vt = 'blob') then
-    begin
+    else if (vt = 'blob') then begin
       FieldType := ftBlob;
       FieldLen := SizeOf(Pointer);
     end
-    else if (vt = 'graphic') then
-    begin
+    else if (vt = 'graphic') then begin
       FieldType := ftGraphic;
       FieldLen := SizeOf(Pointer);
     end
     else if (vt = 'clob') or (vt = 'memo') or (vt = 'text') or (vt = 'longtext') then
     begin
-      FieldType := ftMemo;
+      FieldType := ftWideMemo;
       FieldLen := SizeOf(Pointer);
     end
-    else if (vt = 'nclob') or (vt = 'nmemo') or (vt = 'ntext') or (vt = 'nlongtext') then
+    else if (vt = 'nclob') or (vt = 'nmemo') or (vt = 'ntext') or (vt = 'nlongtext') or (vt = 'widetext') then
     begin
-      FieldType := ftWideString;
+      FieldType := ftWideMemo;
       FieldLen := SizeOf(Pointer);
     end;
   end;
@@ -1206,7 +1207,7 @@ begin
   for j := 0 to Data.Count - 1 do begin
     ptr := GetData(j);
     for i := 0 to FDataSet.FieldList.Count - 1 do begin
-      if FDataSet.FieldList[i].DataType in [ftMemo, ftFmtMemo, ftGraphic, ftBlob, ftVariant] then begin
+      if FDataSet.FieldList[i].DataType in [ftMemo,ftWideMemo, ftFmtMemo, ftGraphic, ftBlob, ftVariant] then begin
         Offset := FDataset.GetFieldOffset(FDataSet.FieldList[i].FieldNo);
         Move((ptr + Offset)^, Pointer(Stream), sizeof(Pointer));
         Stream.Free;
@@ -1561,7 +1562,7 @@ begin
      begin
          for i := 0 to Params.Count - 1 do Begin
            b := i + 1;
-           if (Params[i].IsNull) and (not (Params[i].DataType in [ftMemo, ftGraphic, ftBlob, ftVariant])) then
+           if (Params[i].IsNull) and (not (Params[i].DataType in [ftMemo,ftWideMemo, ftGraphic, ftBlob, ftVariant])) then
               SQLite3_Bind_null(p, b)
            else begin
              if Params[i].DataType = ftInteger then
@@ -1584,7 +1585,7 @@ begin
                 SQLite3_Bind_Text(p, b, PAnsiChar(UTF8Encode(FormatDateTime('yyyy-mm-dd', Params[i].AsDateTime))), 10, SQLITE_TRENT)
              else if Params[i].DataType = ftTime then
                 SQLite3_Bind_Text(p, b, PAnsiChar(UTF8Encode(FormatDateTime('hh:nn:ss:zzz', Params[i].AsDateTime))), 10, SQLITE_TRENT)
-             else if Params[i].DataType in [ftMemo, ftGraphic, ftBlob, ftVariant] then
+             else if Params[i].DataType in [ftMemo,ftWideMemo, ftGraphic, ftBlob, ftVariant] then
                 SQLite3_Bind_Blob(p, b, PAnsiChar(Params[i].AsBlob), Params[i].GetDataSize, SQLITE_TRENT);
            end;
          End;
@@ -1630,7 +1631,7 @@ begin
                 exit;
              end;
 
-             if (MyField.IsNull) and (not (MyField.DataType in [ftMemo, ftGraphic, ftBlob, ftVariant])) then
+             if (MyField.IsNull) and (not (MyField.DataType in [ftWideMemo,ftMemo, ftGraphic, ftBlob, ftVariant])) then
                 SQLite3_Bind_null(p, b)
              else begin
                if MyField.DataType = ftInteger then
@@ -1654,7 +1655,7 @@ begin
                   SQLite3_Bind_Text(p, b, PAnsiChar(UTF8Encode(FormatDateTime('yyyy-mm-dd', MyField.AsDateTime))), 10, SQLITE_TRENT)
                else if MyField.DataType = ftTime then
                   SQLite3_Bind_Text(p, b, PAnsiChar(UTF8Encode(FormatDateTime('hh:nn:ss:zzz', MyField.AsDateTime))), 10, SQLITE_TRENT)
-               else if MyField.DataType in [ftMemo, ftGraphic, ftBlob, ftVariant] then
+               else if MyField.DataType in [ftWideMemo,ftMemo, ftGraphic, ftBlob, ftVariant] then
                   SQLite3_Bind_Blob(p, b, PAnsiChar(Fields[i].AsAnsiString), TBlobField(Fields[i]).BlobSize*2, SQLITE_TRENT);
            End;
          End;
@@ -1719,31 +1720,31 @@ begin
                           //SQl: select max(CurID) from Items, sqlite3_column_decltype returns null.. it's probably SQLite bug
                           // better is to use max(CurID) as something from .... Aducom
                           if coltype = nil then
-                            GetFieldInfo('string', FieldType, FieldLen, FieldDec) //OL
+                            GetFieldInfo('string', FieldType, FieldLen, FieldDec, FEncoding) //OL
                           else
-                            GetFieldInfo(coltype, FieldType, FieldLen, FieldDec);
+                            GetFieldInfo(coltype, FieldType, FieldLen, FieldDec, FEncoding);
 
                           if TypeLess then begin
-                              with FieldDefs.AddFieldDef do begin
-                                  Name := colname;
-                                  DataType := ftString;
-                                  Size := FieldLen;
-                              end;
+                            with FieldDefs.AddFieldDef do begin
+                                Name := colname;
+                                DataType := ftString;
+                                Size := FieldLen;
+                            end;
                           end else begin
-                              if (FieldType <> ftString) and (FieldType <> ftWideString) then begin
-                                  with FieldDefs.AddFieldDef do begin
-                                     Name := colname;
-                                     DataType := FieldType;
-                                     if FieldType = ftFloat then
-                                        Precision := FieldDec;
-                                  end
-                              end else begin
-                                  with FieldDefs.AddFieldDef do begin
-                                      Name := colname;
-                                      DataType := FieldType;
-                                      size := FieldLen;
-                                  end;
-                              end;
+                            if (FieldType <> ftString) and (FieldType <> ftWideString) then begin
+                                with FieldDefs.AddFieldDef do begin
+                                   Name := colname;
+                                   DataType := FieldType;
+                                   if FieldType = ftFloat then
+                                      Precision := FieldDec;
+                                end
+                            end else begin
+                                with FieldDefs.AddFieldDef do begin
+                                    Name := colname;
+                                    DataType := FieldType;
+                                    size := FieldLen;
+                                end;
+                            end;
                           end;
                           MaxStrLen := MaxStrLen + GetNativeFieldSize(i + 1)+1; // compensate for nulls
                           FResult.SetBufSize(MaxStrLen + 1 + SizeOf(TBookMark)+1);
@@ -1756,7 +1757,7 @@ end;
 
 function TASQLite3DB.SQLite3_GetNextResult(DB: Pointer; TheStatement: pointer; Sender: TObject) : pointer;
 var
-  i : integer;
+  i,j : integer;
   RV: Integer;
   mv: Integer;
   convertbuf: TConvertBuffer;
@@ -1767,6 +1768,8 @@ var
   tmpString: string;
   doubleData: Double;
   nativeColType: integer;
+  ansitmp: AnsiString;
+  b: byte;
 begin
   result := nil;
   with (Sender as TASQLite3BaseQuery) do begin
@@ -1816,16 +1819,14 @@ begin
                 else
                   pWideData := SQLite3_Column_text16(theStatement, i);
 
-                if pWideData = nil then
-                  begin
-                    Move(PWideChar('')^, (ResultStr + GetFieldOffset(i + 1))^, 2);
-                  end
-                else
-                  begin
-                    mv := Length(pWideData);
-                    mv := Min(mv, FieldDefs.Items[i].Size);
-                    Move(PWideChar(Copy(pWideData, 1, mv))^, (ResultStr + GetFieldOffset(i + 1))^, mv * 2 + 2);
-                  end;
+                if pWideData = nil then begin
+                  Move(PWideChar('')^, (ResultStr + GetFieldOffset(i + 1))^, 2);
+                end
+                else begin
+                  mv := Length(pWideData);
+                  mv := Min(mv, FieldDefs.Items[i].Size);
+                  Move(PWideChar(Copy(pWideData, 1, mv))^, (ResultStr + GetFieldOffset(i + 1))^, mv * 2 + 2);
+                end;
               end;
 
               ftString: begin // DI
@@ -1849,7 +1850,31 @@ begin
                   end;
                 end;
 
-              ftMemo, ftGraphic, ftBlob, ftVariant: begin// DI
+              ftMemo,ftWideMemo : begin
+                // create memory stream to save blob;
+                blobData := SQLite3_Column_blob(theStatement, i);
+                mv := SQLite3_Column_bytes(theStatement, i);
+                BlobStream := TMemoryStream.Create;
+                case fEncoding of
+                  ascUTF8: begin
+                    SetString(ansitmp, PAnsiChar(blobData), mv);
+                    tmpString := UTF8ToString(ansitmp);
+                    BlobStream.Write(PChar(tmpString)^,Length(tmpString)*SizeOf(Char));
+                  end;
+                  ascUTF16be: begin
+                    for j := 0 to (mv div 2)-1 do begin
+                      b := blobData[2*j];
+                      blobData[2*j] := blobData[2*j+1];
+                      blobData[2*j+1] := b;
+                    end;
+                    BlobStream.Write(blobData^, SQLite3_Column_bytes(theStatement, i));
+                  end;
+                else
+                  BlobStream.Write(blobData^, SQLite3_Column_bytes(theStatement, i));
+                end;
+                Move(BlobStream, (ResultStr + GetFieldOffset(i + 1))^, SizeOf(BlobStream)+1); //2007
+              end;
+              ftGraphic, ftBlob, ftVariant: begin// DI
                 // create memory stream to save blob;
                 blobData := SQLite3_Column_blob(theStatement, i);
                 BlobStream := TMemoryStream.Create;
@@ -1930,7 +1955,7 @@ begin
          SQLite3_Bind_Text16(p, b, PAnsiChar(UTF8Encode(FormatDateTime('yyyy-mm-dd', Params[i].AsDateTime))), 10, SQLITE_TRENT)
        else if Params[i].DataType = ftTime then
          SQLite3_Bind_Text16(p, b, PAnsiChar(UTF8Encode(FormatDateTime('hh:nn:ss:zzz', Params[i].AsDateTime))), 10, SQLITE_TRENT)
-       else if Params[i].DataType in [ftMemo, ftGraphic, ftBlob, ftVariant] then
+       else if Params[i].DataType in [ftWideMemo,ftMemo, ftGraphic, ftBlob, ftVariant] then
          SQLite3_Bind_Blob(p, b, PAnsiChar(Params[i].AsBlob), Params[i].GetDataSize, SQLITE_TRENT);
     end;
 
@@ -2015,7 +2040,7 @@ begin
 
   if not FConnected then
      Connected := true;
-     
+
   if FConnected then
   begin
     if TempTables then
@@ -2106,6 +2131,32 @@ begin
     if Assigned(ResultPtr) then SQLite3_FreeTable(ResultPtr);
   end;
   DebugLeave('TASQLite3DB.GetIndexNames');
+end;
+
+procedure TASQLite3DB.GetCharset;
+var
+  q: TASQLite3Query;
+  s: string;
+begin
+  fEncoding := ascUnknown;
+  ExecStartTransaction('');
+  q := TASQLite3Query.Create(nil);
+  try
+    q.Connection := Self;
+    q.SQL.Text := 'PRAGMA encoding;';
+    q.Open;
+    if not q.EOF then begin
+      s := q.Fields[0].AsString;
+      if s = 'UTF-8' then fEncoding := ascUTF8
+      else if s = 'UTF-16' then fEncoding := ascUTF16
+      else if s = 'UTF-16le' then fEncoding := ascUTF16le
+      else if s = 'UTF-16be' then fEncoding := ascUTF16be
+      else
+    end;
+  finally
+    q.Free;
+    Commit;
+  end;
 end;
 
 procedure TASQLite3DB.GetFieldNames(TableName: string; List: TStrings);
@@ -2328,11 +2379,6 @@ var
 begin
   DebugEnter('TASQLite3DB.DBConnect');
 
-  if (comparetext(FCharEnc,'utf8')=0) or (FCharEnc='') then
-     FUtf8 := true
-  else
-     FUtf8 := false;
-
   if (Connected) and (FDatabase = '') then
   begin
     DebugLeave('TASQLite3DB.DBConnect Exit');
@@ -2428,6 +2474,9 @@ begin
 
 //    SQLite3_create_collation16(DBHandle, pWideChar('system'), 1, self, systemNoCaseCompare);
 //    SQLite3_create_collation16(DBHandle, pWideChar('system'), 1, self, systemCompare);
+
+    GetCharset;
+
 
     if Assigned(FAfterConnect) then
       FAfterConnect(self);
@@ -3071,7 +3120,7 @@ begin
 //        Move(TempBool, result, sizeof(TempBool));
         Move(TempBool, RetBuffer, sizeof(TempBool));
       end;
-    ftMemo, ftGraphic, ftBlob, ftFMTMemo, ftVariant: // pointer to stream
+    ftWideMemo,ftMemo, ftGraphic, ftBlob, ftFMTMemo, ftVariant: // pointer to stream
       begin
         TempInt := StrToInt(String(Buffer));
 //        Move(TempInt, result, sizeof(TempInt));
@@ -3367,7 +3416,7 @@ begin
     ftTimeStamp: inc(Result, 23);
     ftFloat, ftBCD, ftCurrency: Result := 12;
     ftBoolean: Result := 12;
-    ftGraphic, ftMemo, ftBlob, ftFmtMemo, ftVariant: Result := 12; // space for memory handles
+    ftGraphic, ftMemo, ftBlob, ftFmtMemo, ftVariant, ftWideMemo: Result := 12; // space for memory handles
   else
     raise AsgError.Create('Fieldtype of Field "' + FieldDefs.Items[FieldNo - 1].Name +
       '" not supported!');
@@ -3392,7 +3441,7 @@ begin
     ftTimeStamp: inc(Result, Sizeof(TTimeStamp));
     ftFloat, ftBCD, ftCurrency: Inc(Result, sizeof(double));
     ftBoolean: Inc(Result, sizeof(wordbool));
-    ftGraphic, ftMemo, ftBlob, ftFmtMemo, ftVariant: Inc(Result, sizeof(pointer));
+    ftGraphic, ftMemo, ftBlob, ftFmtMemo, ftVariant, ftWideMemo: Inc(Result, sizeof(pointer));
   else
     raise AsgError.Create('Fieldtype of Field "' + FieldDefs.Items[FieldNo - 1].Name +
       '" not supported!');
@@ -3416,7 +3465,7 @@ begin
     ftDateTime: Inc(Result, sizeof(TDateTime));
     ftFloat, ftBCD, ftCurrency: Inc(Result, sizeof(double));
     ftBoolean: Inc(Result, sizeof(wordbool));
-    ftGraphic, ftMemo, ftBlob, ftFmtMemo, ftVariant: Inc(Result, sizeof(pointer));
+    ftWideMemo,ftGraphic, ftMemo, ftBlob, ftFmtMemo, ftVariant: Inc(Result, sizeof(pointer));
   else
     raise AsgError.Create('Fieldtype of Field "' + Field.FieldName +
       '" not supported!');
@@ -3641,13 +3690,13 @@ end;
 
 procedure TASQLite3BaseQuery.OpenCursor(InfoQuery: Boolean);
 begin  
-  if InfoQuery then  
-    Begin  
-      if Assigned(FConnection) Then Begin  
+  if InfoQuery then
+    Begin
+      if Assigned(FConnection) Then Begin
         InternalOpen;
-        InternalClose;  
-      End;  
-    End  
+        InternalClose;
+      End;
+    End
   else if State <> dsOpening then  
     inherited OpenCursor(InfoQuery);  
 end;  
@@ -3929,7 +3978,7 @@ begin
     if not ((Fields[i].Calculated) or (Fields[i].Lookup)) then begin
       setNullSrc(lBuffer, i + 1, true); //Jure: field is null
       case FieldDefs.Items[i].Datatype of
-        ftMemo, ftGraphic, ftBlob, ftFmtMemo, ftVariant: begin
+        ftWideMemo,ftMemo, ftGraphic, ftBlob, ftFmtMemo, ftVariant: begin
             Stream := TMemoryStream.Create;
             Move(Pointer(Stream), (lBuffer + GetFieldOffset(i + 1))^, sizeof(Pointer)+1); //2007
         end;
