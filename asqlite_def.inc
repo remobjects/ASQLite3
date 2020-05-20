@@ -11,9 +11,27 @@ for questions please register on the forum on www.aducom.com/sqlite
 {$IFDEF VER110}{C3}{$B-}{$X+}{$T-}{$H+}{$ENDIF}
 {$IFDEF VER93}{C1}{$B-}{$X+}{$T-}{$H+}{$ENDIF}
 
+{$IFDEF VER340}
+  {$DEFINE VER200} // define for DELPHI XE13
+  {$DEFINE ASQLite_XE13PLUS}
+  {$DEFINE ASQLite_XE12PLUS}
+  {$DEFINE ASQLite_XE11PLUS}
+  {$DEFINE ASQLite_XE10PLUS}
+  {$DEFINE ASQLite_XE9PLUS}
+  {$DEFINE ASQLite_XE8PLUS}
+  {$DEFINE ASQLite_XE7PLUS}
+  {$DEFINE ASQLite_XE6PLUS}
+  {$DEFINE ASQLite_XE5PLUS}
+  {$DEFINE ASQLite_XE4PLUS}
+  {$DEFINE ASQLite_XE3PLUS}
+  {$DEFINE ASQLite_XE2PLUS}
+  {$DEFINE ASQLite_XEPLUS}
+  {$DEFINE ASQLite_D2010PLUS}
+{$ENDIF}
+
 {$IFDEF VER330}
   {$DEFINE VER200} // define for DELPHI XE12
-  {$DEFINE ASQLite_XE12PLUS}  
+  {$DEFINE ASQLite_XE12PLUS}
   {$DEFINE ASQLite_XE11PLUS}
   {$DEFINE ASQLite_XE10PLUS}
   {$DEFINE ASQLite_XE9PLUS}
@@ -62,7 +80,7 @@ for questions please register on the forum on www.aducom.com/sqlite
 
 {$IFDEF VER300}
   {$DEFINE VER200} // define for DELPHI XE9
-  {$DEFINE ASQLite_XE9PLUS}  
+  {$DEFINE ASQLite_XE9PLUS}
   {$DEFINE ASQLite_XE8PLUS}
   {$DEFINE ASQLite_XE7PLUS}
   {$DEFINE ASQLite_XE6PLUS}
@@ -90,7 +108,7 @@ for questions please register on the forum on www.aducom.com/sqlite
 
 {$IFDEF VER280}
   {$DEFINE VER200} // define for DELPHI XE7
-  {$DEFINE ASQLite_XE7PLUS}  
+  {$DEFINE ASQLite_XE7PLUS}
   {$DEFINE ASQLite_XE6PLUS}
   {$DEFINE ASQLite_XE5PLUS}
   {$DEFINE ASQLite_XE4PLUS}
@@ -114,7 +132,7 @@ for questions please register on the forum on www.aducom.com/sqlite
 
 {$IFDEF VER260}
   {$DEFINE VER200} // define for DELPHI XE5
-  {$DEFINE ASQLite_XE5PLUS}  
+  {$DEFINE ASQLite_XE5PLUS}
   {$DEFINE ASQLite_XE4PLUS}
   {$DEFINE ASQLite_XE3PLUS}
   {$DEFINE ASQLite_XE2PLUS}
@@ -221,7 +239,7 @@ for questions please register on the forum on www.aducom.com/sqlite
   {$DEFINE ASQLite_D6PLUS}
   {$DEFINE ASQLite_D7PLUS}
   {DELPHI7}
-  {$B-}{$X+}{$T-}{$H+}                                   
+  {$B-}{$X+}{$T-}{$H+}
   {$DEFINE ASQLite_DYNARRAY}
 {$ENDIF}
 {$IFDEF VER140}
