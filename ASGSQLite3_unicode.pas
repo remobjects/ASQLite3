@@ -2803,8 +2803,26 @@ end;
   support routine for UTF16
 }
 {$IFNDEF ASQLite_XE3PLUS}
+
+{$IFDEF ASQLite_D2006PLUS}
+function WStrLCopy(Dest: PWideChar; const Source: PWideChar; MaxLen: Cardinal): PWideChar;
+var
+  Src : PWideChar;
+begin
+  Result := Dest;
+  Src := Source;
+  while (Src^ <> #$00) and (MaxLen > 0) do begin
+    Dest^ := Src^;
+    Inc(Src);
+    Inc(Dest);
+    Dec(MaxLen);
+  end;
+  Dest^ := #$00;
+end;
+{$ENDIF}
+
 procedure TASQlite3BaseQuery.DataConvert(Field: TField; Source: Dataset_TValueBuffer;
-   Dest: Dataset_TValueBuffer; ToNative: Boolean)
+   Dest: Dataset_TValueBuffer; ToNative: Boolean);
 {$IFNDEF FPC}{$IFNDEF ASQLite_D2006PLUS}
 var
   len: integer;
