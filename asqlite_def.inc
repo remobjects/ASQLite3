@@ -295,3 +295,18 @@ for questions please register on the forum on www.aducom.com/sqlite
 
 {$HINTS OFF}
 {$WARNINGS OFF}
+
+
+{$IFDEF FPC}
+  {$DEFINE DA_WideMemoSupport}        // support for ftWideMemo
+  {$DEFINE DA_FixedWideCharSupport}   // support for ftFixedWideChar
+  {$DEFINE UNICODE_SUPPORT}
+{$ENDIF}
+
+{$IFDEF ASQLite_D2006PLUS}
+  {$DEFINE DA_WideMemoSupport}        // support for ftWideMemo
+  {$DEFINE DA_FixedWideCharSupport}   // support for ftFixedWideChar
+  {$IFDEF UNICODE}
+    {$DEFINE UNICODE_SUPPORT}
+  {$ENDIF}
+{$ENDIF}

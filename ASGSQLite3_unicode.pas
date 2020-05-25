@@ -1,7 +1,7 @@
 // To enable debugging remove the dot. Do NOT forget to re-insert before
 // deploying to production since this feature will slow down this component
 // significantly
-{.$DEFINE DEBUG_ENABLED } // Enables Debug information
+{.$DEFINE DEBUG_ENABLED} // Enables Debug information
  {.$DEFINE DEBUG_VERY_LOUD}
  {.$DEFINE DEBUG_LOUD}
 
@@ -179,6 +179,18 @@ type
 {$IFNDEF ASQLite_XE2PLUS}
   NativeInt = LongInt;
 {$ENDIF}
+
+
+{$IFNDEF UNICODE_SUPPORT}
+  UnicodeChar = WideChar;
+  PUnicodeChar = PWideChar;
+  UnicodeString = WideString;
+  PUnicodeString = PWideString;
+{$ELSE}
+  UnicodeChar = Char;
+  PUnicodeChar = PChar;
+{$ENDIF}
+
   Dataset_PByte = PByte;
 
 {$IFDEF ASQLite_XE3PLUS}
@@ -668,7 +680,7 @@ type
     procedure SetSQLiteDateFormat(const Value: boolean);
     procedure SetFilterText(const Value: string); override;
     {$IFNDEF ASQLite_XE3PLUS}
-    procedure DataConvert(Field: TField; Source, Dest: Dataset_TValueBuffer; ToNative: Boolean); override;//\\\
+    procedure DataConvert(Field: TField; Source: Dataset_TValueBuffer; Dest: Dataset_TValueBuffer; ToNative: Boolean); override;//\\\
     {$ENDIF}
     function CalcFieldInList(const List: string): Boolean;                      // John Lito
 
@@ -860,14 +872,14 @@ var
 procedure Debug(const S: string);
 begin
 {$IFDEF DEBUG_ENABLED}
-  OutputDebugString(PAnsiChar(StringOfAnsiChar(' ', DebugSpaces) + S));
+  OutputDebugString(PChar(StringOfChar(' ', DebugSpaces) + S));
 {$ENDIF}
 end;
 
 procedure DebugEnter(const S: string);
 begin
 {$IFDEF DEBUG_ENABLED}
-  OutputDebugString(PAnsiChar(StringOfAnsiChar(' ', DebugSpaces) + 'Enter ' + S));
+  OutputDebugString(PChar(StringOfChar(' ', DebugSpaces) + 'Enter ' + S));
   inc(DebugSpaces);
 {$ENDIF}
 end;
@@ -876,7 +888,7 @@ procedure DebugLeave(const S: string);
 begin
 {$IFDEF DEBUG_ENABLED}
   dec(DebugSpaces);
-  OutputDebugString(PAnsiChar(StringOfAnsiChar(' ', DebugSpaces) + 'Leave ' + S));
+  OutputDebugString(PChar(StringOfChar(' ', DebugSpaces) + 'Leave ' + S));
 {$ENDIF}
 end;
 
@@ -2791,18 +2803,35 @@ end;
   support routine for UTF16
 }
 {$IFNDEF ASQLite_XE3PLUS}
-procedure TASQlite3BaseQuery.DataConvert(Field: TField; Source, Dest: Dataset_TValueBuffer;
-  ToNative: Boolean);
+procedure TASQlite3BaseQuery.DataConvert(Field: TField; Source: Dataset_TValueBuffer;
+   Dest: Dataset_TValueBuffer; ToNative: Boolean)
+{$IFNDEF FPC}{$IFNDEF ASQLite_D2006PLUS}
+var
+  len: integer;
+{$ENDIF ASQLite_D2006PLUS}{$ENDIF}
 begin
-  if Field.DataType = ftWideString then begin
-     if ToNative then begin
-        WStrCopy(PWideChar(Dest), PWideChar(Source))
-     end else begin
-        WStrCopy(PWideChar(Dest), PWideChar(Source))
-     end;//ftWideString
-  end else
-       inherited DataConvert(Field, Source, Dest, ToNative);
- end;//DataConvert
+  case Field.Datatype of
+    ftUnknown:;
+{$IFNDEF ASQLite_XE3UP}{$IFNDEF FPC}{$IFNDEF ASQLite_D2006PLUS}
+    ftWideString: begin
+      if ToNative then begin
+        len := Length(PUnicodeString(Source)^);
+        Move(PUnicodeChar(Source^)^, PUnicodeChar(Dest)^, len * SizeOf(UnicodeChar));
+        PUnicodeChar(Dest)[Len] := #0;
+      end
+      else begin
+        len := Length(PUnicodeChar(Source));
+        SetString(UnicodeString(Dest^), PUnicodeChar(Source), Len);
+      end;
+    end;
+{$ELSE}
+    {$IFDEF DA_FixedWideCharSupport}ftFixedWideChar,{$ENDIF DA_FixedWideCharSupport}
+    ftWideString: WStrLCopy(PWideChar(Dest), PWideChar(Source), Field.Size+1);
+{$ENDIF}{$ENDIF}{$ENDIF}
+  else
+    inherited DataConvert(Field, Source, Dest, ToNative);
+  end;
+end;
  {$ENDIF}
 
 procedure TASQlite3BaseQuery.DataEvent(Event: TDataEvent; Info: NativeInt);
@@ -4052,7 +4081,7 @@ begin
         Move((SrcBuffer + GetFieldOffset(Field.FieldNo))^, DestBuffer^, GetFieldSize(Field.FieldNo));
         if Field.DataType = ftWideString then begin
            MyWideBuf := PWideChar(DestBuffer);
-           _len := Field.DataSize*2+2;
+           _len := Field.Size*2+2;
            Move(MyWideBuf[1], DestBuffer^, _len);
 
         end else if Field.DataType = ftString then begin // GPA
@@ -4114,7 +4143,7 @@ begin
       setNullSrc(DestBuffer, Field.FieldNo, false);
       if Field.DataType = ftWideString then begin
           MyWBuf := PWideChar(SourceBuffer);
-          Move(MyWBuf[1], (DestBuffer + GetFieldOffset(Field.FieldNo))^, Length(MyWBuf)*2+1) // GPA - Warning UTF-8 length can be potentially >  length
+          Move(MyWBuf[1], (DestBuffer + GetFieldOffset(Field.FieldNo))^, Field.Size+2) // GPA - Warning UTF-8 length can be potentially >  length
       end else if Field.DataType = ftString then
         Begin // GPA
           MyBuf := PChar(SourceBuffer);
